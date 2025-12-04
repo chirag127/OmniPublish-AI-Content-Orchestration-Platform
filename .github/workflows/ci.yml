@@ -1,0 +1,52 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci-pipeline:
+    name: "Python CI Pipeline"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv (Modern Python Packager)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Lint and Format Check with Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Run Tests and Generate Coverage
+        run: uv run pytest --cov=./ --cov-report=xml
+
+      - name: Upload Coverage Report to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          fail_ci_if_error: true
+          verbose: true
